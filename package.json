@@ -75,7 +75,8 @@
     "prepare": "npm run build",
     "lint": "tsc",
     "test": "vitest",
-    "benchmark": "tsx benchmark/stress.ts"
+    "benchmark": "tsx benchmark/stress.ts",
+    "release": "npm run build && npm version patch && git push --follow-tags"
   },
   "type": "module",
   "types": "dist/server/index.d.ts"
