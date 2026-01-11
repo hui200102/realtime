@@ -1,7 +1,9 @@
 import type Redis from "ioredis";
 import { type UserEvent, userEvent, Logger } from "../shared/types.js";
 
-type Listener = (message: UserEvent) => void;
+type Listener = (message: UserEvent, encodedMessage: Uint8Array) => void;
+
+const encoder = new TextEncoder();
 
 export class SubscriptionManager {
   private redis: Redis;
@@ -43,12 +45,16 @@ export class SubscriptionManager {
         const result = userEvent.safeParse(payload);
 
         if (result.success) {
+          const encodedMessage = encoder.encode(
+            `data: ${JSON.stringify(result.data)}\n\n`
+          );
+
           this.logger.debug?.(
             `[SubscriptionManager] Dispatching message to ${handlers.size} listeners on ${channel}`
           );
           handlers.forEach((listener) => {
             try {
-              listener(result.data);
+              listener(result.data, encodedMessage);
             } catch (listenerErr) {
               this.logger.error(
                 `[SubscriptionManager] Error in listener for ${channel}:`,
