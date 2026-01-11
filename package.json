@@ -1,5 +1,5 @@
 {
-  "name": "@openart/realtime",
+  "name": "openart-realtime-sdk",
   "version": "1.0.1",
   "author": "OpenArt",
   "repository": {
@@ -72,11 +72,11 @@
   "license": "MIT",
   "scripts": {
     "build": "tsup",
-    "prepare": "npm run build",
+    "prepublishOnly": "npm run build",
     "lint": "tsc",
     "test": "vitest",
     "benchmark": "tsx benchmark/stress.ts",
-    "release": "npm run build && npm version patch && git push --follow-tags"
+    "release": "npm publish --access public && git push --follow-tags"
   },
   "type": "module",
   "types": "dist/server/index.d.ts"
