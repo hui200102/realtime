@@ -258,8 +258,10 @@ export function handle<T extends Opts>(config: {
   };
 }
 
+const encoder = new TextEncoder();
+
 export function json(data: SystemEvent | UserEvent) {
-  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
+  return encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
 }
 
 export class StreamingResponse extends Response {
