@@ -1,0 +1,72 @@
+{
+  "name": "realtime",
+  "version": "1.0.0",
+  "author": "Joscha Neske",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/realtime-framework/realtime"
+  },
+  "main": "dist/server/index.js",
+  "module": "dist/server/index.js",
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "zod": "^4.1.11"
+  },
+  "peerDependencies": {
+    "ioredis": "^5.4.0",
+    "zod": "^3.25.0 || ^4.0.0",
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/server/index.d.ts",
+        "default": "./dist/server/index.js"
+      },
+      "require": {
+        "types": "./dist/server/index.d.ts",
+        "default": "./dist/server/index.js"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/client/index.d.ts",
+        "default": "./dist/client/index.js"
+      },
+      "require": {
+        "types": "./dist/client/index.d.ts",
+        "default": "./dist/client/index.js"
+      }
+    }
+  },
+  "access": "public",
+  "description": "An HTTP-based realtime client powered by Redis Streams.",
+  "files": [
+    "dist"
+  ],
+  "homepage": "https://github.com/realtime-framework/realtime",
+  "keywords": [
+    "realtime",
+    "serverless"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup",
+    "lint": "tsc"
+  },
+  "type": "module",
+  "types": "dist/server/index.d.ts"
+}
