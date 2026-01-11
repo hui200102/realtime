@@ -16,6 +16,7 @@
     "tsup": "^8.5.0",
     "typescript": "^5.9.2",
     "vitest": "^2.1.8",
+    "tsx": "^4.7.0",
     "@testing-library/react": "^16.1.0",
     "@testing-library/dom": "^10.4.0",
     "jsdom": "^25.0.1",
@@ -72,7 +73,8 @@
   "scripts": {
     "build": "tsup",
     "lint": "tsc",
-    "test": "vitest"
+    "test": "vitest",
+    "benchmark": "tsx benchmark/stress.ts"
   },
   "type": "module",
   "types": "dist/server/index.d.ts"

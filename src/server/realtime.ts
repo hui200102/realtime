@@ -107,7 +107,7 @@ class RealtimeBase<T extends Opts> {
 
       const start = args?.start ? String(args.start) : "-"
       const end = args?.end ? String(args.end) : "+"
-      const limit = Math.min(args?.limit ?? 1000, 1000)
+      const limit = args?.limit ?? 1000
 
       const rawHistory = await redis.xrange(channel, start, end, 'COUNT', limit);
       
