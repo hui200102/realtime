@@ -1,5 +1,5 @@
-import z from "zod/v4"
-import core from "zod/v4/core"
+import z from "zod/v4";
+import core from "zod/v4/core";
 
 export const systemEvent = z.discriminatedUnion("type", [
   z.object({
@@ -11,22 +11,26 @@ export const systemEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("error"), error: z.string() }),
   z.object({ type: z.literal("disconnected"), channels: z.array(z.string()) }),
   z.object({ type: z.literal("ping"), timestamp: z.number() }),
-])
+]);
 
-export type SystemEvent = z.infer<typeof systemEvent>
+export type SystemEvent = z.infer<typeof systemEvent>;
 
 export const userEvent = z.object({
   id: z.string(),
   data: z.unknown(),
   event: z.string(),
   channel: z.string(),
-})
+});
 
-export type UserEvent = z.infer<typeof userEvent>
+export type UserEvent = z.infer<typeof userEvent>;
 
-export type RealtimeMessage = SystemEvent | UserEvent
+export type RealtimeMessage = SystemEvent | UserEvent;
 
-export type ConnectionStatus = "connected" | "disconnected" | "error" | "connecting"
+export type ConnectionStatus =
+  | "connected"
+  | "disconnected"
+  | "error"
+  | "connecting";
 
 export type EventPaths<
   T,
@@ -39,8 +43,8 @@ export type EventPaths<
         ? `${Prefix}${K}`
         : T[K] extends Record<string, unknown>
         ? EventPaths<T[K], `${Prefix}${K}.`, [...Depth, 0]>
-        : `${Prefix}${K}`
-    }[keyof T & string]
+        : `${Prefix}${K}`;
+    }[keyof T & string];
 
 type EventData<
   T,
@@ -58,32 +62,32 @@ type EventData<
   ? T[K] extends core.$ZodType
     ? T[K]
     : never
-  : never
+  : never;
 
 export type EventPayloadUnion<T, E extends string> = E extends unknown
   ? { event: E; data: core.infer<EventData<T, E>>; channel: string }
-  : never
+  : never;
 
-export type HistoryArgs = { limit?: number; start?: number; end?: number }
+export type HistoryArgs = { limit?: number; start?: number; end?: number };
 
 // --- Production Improvements ---
 
 export interface Logger {
-  info(message: string, ...args: unknown[]): void
-  warn(message: string, ...args: unknown[]): void
-  error(message: string, ...args: unknown[]): void
-  debug?(message: string, ...args: unknown[]): void
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+  debug?(message: string, ...args: unknown[]): void;
 }
 
 export interface RealtimeConfig {
-    /** 
-     * Enable debug logging 
-     * @default false
-     */
-    debug?: boolean
-    /**
-     * Custom logger implementation
-     * @default console
-     */
-    logger?: Logger
+  /**
+   * Enable debug logging
+   * @default false
+   */
+  debug?: boolean;
+  /**
+   * Custom logger implementation
+   * @default console
+   */
+  logger?: Logger;
 }

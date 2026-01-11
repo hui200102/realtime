@@ -1,20 +1,20 @@
-import type { Opts, Realtime } from "./realtime.js"
+import type { Opts, Realtime } from "./realtime.js";
 import {
   userEvent,
   type SystemEvent,
   type UserEvent,
-} from "../shared/types.js"
-import { compareStreamIds, parseStreamResponse } from "./utils.js"
+} from "../shared/types.js";
+import { compareStreamIds, parseStreamResponse } from "./utils.js";
 
 export function handle<T extends Opts>(config: {
-  realtime: Realtime<T>
+  realtime: Realtime<T>;
   /**
    * Maximum number of missed messages to retrieve from history upon reconnection.
    * Defaults to 2000. Increase this if your application expects high message volume
    * and needs to ensure clients catch up on all history after long disconnections.
    * Warning: Setting this too high may cause memory issues on the server.
    */
-  maxRecoveryLimit?: number
+  maxRecoveryLimit?: number;
   /**
    * Middleware to authorize the request (e.g. check session cookie, check channel permissions).
    * Return a Response to block the request, or nothing to allow.
@@ -23,223 +23,243 @@ export function handle<T extends Opts>(config: {
     request,
     channels,
   }: {
-    request: Request
-    channels: string[]
-  }) => Response | void | Promise<Response | void>
+    request: Request;
+    channels: string[];
+  }) => Response | void | Promise<Response | void>;
 }): (request: Request) => Promise<Response | void> {
   return async (request: Request) => {
-    const requestStartTime = Date.now()
-    const { searchParams } = new URL(request.url)
+    const requestStartTime = Date.now();
+    const { searchParams } = new URL(request.url);
     const rawChannels =
       searchParams.getAll("channel").length > 0
         ? searchParams.getAll("channel")
-        : ["default"]
-    const channels = [...new Set(rawChannels)]
+        : ["default"];
+    const channels = [...new Set(rawChannels)];
 
-    const redis = config.realtime._redis
-    const logger = config.realtime._logger
-    const subscriptionManager = config.realtime._subscriptionManager
-    const maxRecoveryLimit = config.maxRecoveryLimit ?? 2000
+    const redis = config.realtime._redis;
+    const logger = config.realtime._logger;
+    const subscriptionManager = config.realtime._subscriptionManager;
+    const maxRecoveryLimit = config.maxRecoveryLimit ?? 2000;
 
     if (config.middleware) {
-      const result = await config.middleware({ request, channels })
-      if (result) return result
+      const result = await config.middleware({ request, channels });
+      if (result) return result;
     }
 
     if (!redis || !subscriptionManager) {
-      logger.error("No Redis instance provided to Realtime")
+      logger.error("No Redis instance provided to Realtime");
       return new Response(JSON.stringify({ error: "Redis not configured" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
-      })
+      });
     }
 
-    let cleanup: (() => Promise<void>) | undefined
+    let cleanup: (() => Promise<void>) | undefined;
     // No dedicated subscriber connection anymore
-    const unsubs: (() => void)[] = []
-    
-    let reconnectTimeout: NodeJS.Timeout | undefined
-    let keepaliveInterval: NodeJS.Timeout | undefined
-    let isClosed = false
-    let handleAbort: (() => Promise<void>) | undefined
-    
+    const unsubs: (() => void)[] = [];
+
+    let reconnectTimeout: NodeJS.Timeout | undefined;
+    let keepaliveInterval: NodeJS.Timeout | undefined;
+    let isClosed = false;
+    let handleAbort: (() => Promise<void>) | undefined;
+
     const stream = new ReadableStream({
       async start(controller) {
         if (request.signal.aborted) {
-          controller.close()
-          return
+          controller.close();
+          return;
         }
 
         cleanup = async () => {
-          if (isClosed) return
-          isClosed = true
+          if (isClosed) return;
+          isClosed = true;
 
-          clearTimeout(reconnectTimeout)
-          clearInterval(keepaliveInterval)
+          clearTimeout(reconnectTimeout);
+          clearInterval(keepaliveInterval);
 
           if (handleAbort) {
-            request.signal.removeEventListener("abort", handleAbort)
+            request.signal.removeEventListener("abort", handleAbort);
           }
 
           // Unsubscribe from manager
-          unsubs.forEach((unsub) => unsub())
+          unsubs.forEach((unsub) => unsub());
 
           try {
-            if (!request.signal.aborted) controller.close()
-            logger.info("✅ Connection closed successfully.")
+            if (!request.signal.aborted) controller.close();
+            logger.info("✅ Connection closed successfully.");
           } catch (err) {
-            logger.error("⚠️ Error closing controller:", err)
+            logger.error("⚠️ Error closing controller:", err);
           }
-        }
+        };
 
         handleAbort = async () => {
-          await cleanup?.()
-        }
+          await cleanup?.();
+        };
 
-        request.signal.addEventListener("abort", handleAbort)
+        request.signal.addEventListener("abort", handleAbort);
 
         const safeEnqueue = (data: Uint8Array) => {
-          if (isClosed) return
+          if (isClosed) return;
 
           try {
-            controller.enqueue(data)
+            controller.enqueue(data);
           } catch (err) {
-            logger.error("⚠️ Error closing controller:", err)
+            logger.error("⚠️ Error closing controller:", err);
           }
-        }
+        };
 
-        const elapsedMs = Date.now() - requestStartTime
-        const remainingMs = config.realtime._maxDurationSecs * 1000 - elapsedMs
-        const streamDurationMs = Math.max(remainingMs - 2000, 1000)
+        const elapsedMs = Date.now() - requestStartTime;
+        const remainingMs = config.realtime._maxDurationSecs * 1000 - elapsedMs;
+        const streamDurationMs = Math.max(remainingMs - 2000, 1000);
 
         reconnectTimeout = setTimeout(async () => {
           const reconnectEvent: SystemEvent = {
             type: "reconnect",
             timestamp: Date.now(),
-          }
+          };
 
-          safeEnqueue(json(reconnectEvent))
+          safeEnqueue(json(reconnectEvent));
 
-          await cleanup?.()
-        }, streamDurationMs)
+          await cleanup?.();
+        }, streamDurationMs);
 
-        let buffer: UserEvent[] = []
-        let isHistoryReplayed = false
-        const lastHistoryIds = new Map<string, string>()
+        let buffer: UserEvent[] = [];
+        let isHistoryReplayed = false;
+        const lastHistoryIds = new Map<string, string>();
 
         const onManagerMessage = (message: UserEvent) => {
-             // We don't need to parse/filter here anymore, manager does it.
-             // We just need to handle buffer/replay logic.
-             logger.debug?.("⬇️  Received event:", message)
-             
-             if (!isHistoryReplayed) {
-                buffer.push(message)
-             } else {
-                safeEnqueue(json(message))
-             }
-        }
+          // We don't need to parse/filter here anymore, manager does it.
+          // We just need to handle buffer/replay logic.
+          logger.debug?.("⬇️  Received event:", message);
+
+          if (!isHistoryReplayed) {
+            buffer.push(message);
+          } else {
+            safeEnqueue(json(message));
+          }
+        };
 
         const fetchHistory = async () => {
           // Optimization: Use pipeline to fetch history for all channels in one round-trip
-          const pipeline = redis.pipeline()
-          const channelAcks = new Map<string, string>()
+          const pipeline = redis.pipeline();
+          const channelAcks = new Map<string, string>();
 
           for (const channel of channels) {
             const connectedEvent: SystemEvent = {
-                type: "connected",
-                channel,
-            }
-            safeEnqueue(json(connectedEvent))
+              type: "connected",
+              channel,
+            };
+            safeEnqueue(json(connectedEvent));
 
-            const lastAck = searchParams.get(`last_ack_${channel}`) ?? String(Date.now())
-            channelAcks.set(channel, lastAck)
-            
-            pipeline.xrange(channel, `(${lastAck}`, "+", "COUNT", maxRecoveryLimit)
+            const lastAck =
+              searchParams.get(`last_ack_${channel}`) ?? String(Date.now());
+            channelAcks.set(channel, lastAck);
+
+            pipeline.xrange(
+              channel,
+              `(${lastAck}`,
+              "+",
+              "COUNT",
+              maxRecoveryLimit
+            );
           }
 
           try {
-            const results = await pipeline.exec()
-            
+            const results = await pipeline.exec();
+
             if (results) {
-                results.forEach((result, index) => {
-                    const [err, rawMissing] = result
-                    const channel = channels[index]
+              results.forEach((result, index) => {
+                const [err, rawMissing] = result;
+                const channel = channels[index];
 
-                    if (!channel) return
+                if (!channel) return;
 
-                    if (err) {
-                        logger.error(`Error fetching history for channel ${channel}:`, err)
-                        return
-                    }
+                if (err) {
+                  logger.error(
+                    `Error fetching history for channel ${channel}:`,
+                    err
+                  );
+                  return;
+                }
 
-                    const missingMessages = parseStreamResponse(rawMissing)
+                const missingMessages = parseStreamResponse(rawMissing);
 
-                    if (missingMessages.length > 0) {
-                        missingMessages.forEach((value) => {
-                            const eventWithId = value
-                            const event = userEvent.safeParse(eventWithId)
-                            if (event.success) safeEnqueue(json(event.data))
-                        })
-                        lastHistoryIds.set(channel, missingMessages[missingMessages.length - 1]?.id as string ?? "")
-                    }
-                })
+                if (missingMessages.length > 0) {
+                  missingMessages.forEach((value) => {
+                    const eventWithId = value;
+                    const event = userEvent.safeParse(eventWithId);
+                    if (event.success) safeEnqueue(json(event.data));
+                  });
+                  lastHistoryIds.set(
+                    channel,
+                    (missingMessages[missingMessages.length - 1]
+                      ?.id as string) ?? ""
+                  );
+                }
+              });
             }
           } catch (error) {
-              logger.error("Error executing history pipeline:", error as string)
+            logger.error("Error executing history pipeline:", error as string);
           }
 
           for (const msg of buffer) {
-            const channelLastId = lastHistoryIds.get(msg.channel)
-            if (channelLastId && compareStreamIds(msg.id, channelLastId) <= 0) continue
-            safeEnqueue(json(msg))
+            const channelLastId = lastHistoryIds.get(msg.channel);
+            if (channelLastId && compareStreamIds(msg.id, channelLastId) <= 0)
+              continue;
+            safeEnqueue(json(msg));
           }
 
-          buffer = []
-          isHistoryReplayed = true
+          buffer = [];
+          isHistoryReplayed = true;
 
-          logger.info("✅ Subscription established:", { channels } as any)
-        }
+          logger.info("✅ Subscription established:", { channels } as any);
+        };
 
         try {
-            await Promise.all(channels.map(async (channel) => {
-                const unsub = await subscriptionManager.subscribe(channel, onManagerMessage);
-                unsubs.push(unsub);
-            }));
-            
-            // After successful subscription
-            await fetchHistory();
-            
+          await Promise.all(
+            channels.map(async (channel) => {
+              const unsub = await subscriptionManager.subscribe(
+                channel,
+                onManagerMessage
+              );
+              unsubs.push(unsub);
+            })
+          );
+
+          // After successful subscription
+          await fetchHistory();
         } catch (err: unknown) {
-             const errorMessage = err instanceof Error ? err.message : "Unknown error";
-             logger.error("⚠️ Redis subscriber error:", errorMessage)
-             const errorEvent: SystemEvent = {
-                type: "error",
-                error: errorMessage,
-             }
-             safeEnqueue(json(errorEvent))
+          const errorMessage =
+            err instanceof Error ? err.message : "Unknown error";
+          logger.error("⚠️ Redis subscriber error:", errorMessage);
+          const errorEvent: SystemEvent = {
+            type: "error",
+            error: errorMessage,
+          };
+          safeEnqueue(json(errorEvent));
         }
 
         keepaliveInterval = setInterval(() => {
           const pingEvent: SystemEvent = {
             type: "ping",
             timestamp: Date.now(),
-          }
-          safeEnqueue(json(pingEvent))
-        }, 60_000)
+          };
+          safeEnqueue(json(pingEvent));
+        }, 60_000);
       },
 
       async cancel() {
-        if (isClosed) return
-        await cleanup?.()
+        if (isClosed) return;
+        await cleanup?.();
       },
-    })
+    });
 
-    return new StreamingResponse(stream)
-  }
+    return new StreamingResponse(stream);
+  };
 }
 
 export function json(data: SystemEvent | UserEvent) {
-  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
+  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
 }
 
 export class StreamingResponse extends Response {
@@ -256,6 +276,6 @@ export class StreamingResponse extends Response {
         "Access-Control-Allow-Headers": "Cache-Control",
         ...init?.headers,
       },
-    })
+    });
   }
 }
