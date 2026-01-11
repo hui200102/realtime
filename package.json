@@ -75,7 +75,7 @@
     "build": "tsup",
     "prepublishOnly": "npm run build",
     "lint": "tsc",
-    "test": "vitest",
+    "test": "vitest run",
     "benchmark": "tsx benchmark/stress.ts",
     "release": "release-it"
   },
