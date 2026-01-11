@@ -1,10 +1,10 @@
 {
-  "name": "realtime",
+  "name": "@openart/realtime",
   "version": "1.0.0",
-  "author": "Joscha Neske",
+  "author": "OpenArt",
   "repository": {
     "type": "git",
-    "url": "https://github.com/realtime-framework/realtime"
+    "url": "https://github.com/hui200102/realtime.git"
   },
   "main": "dist/server/index.js",
   "module": "dist/server/index.js",
@@ -72,6 +72,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsup",
+    "prepare": "npm run build",
     "lint": "tsc",
     "test": "vitest",
     "benchmark": "tsx benchmark/stress.ts"
