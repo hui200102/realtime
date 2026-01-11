@@ -9,25 +9,26 @@
   "main": "dist/server/index.js",
   "module": "dist/server/index.js",
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
+    "@types/ioredis-mock": "^8.2.5",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
-    "@types/ioredis-mock": "^8.2.5",
+    "ioredis-mock": "^8.9.0",
+    "jsdom": "^25.0.1",
+    "release-it": "^19.2.3",
     "tsup": "^8.5.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.9.2",
     "vitest": "^2.1.8",
-    "tsx": "^4.7.0",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/dom": "^10.4.0",
-    "jsdom": "^25.0.1",
-    "ioredis-mock": "^8.9.0",
     "zod": "^4.1.11"
   },
   "peerDependencies": {
     "ioredis": "^5.4.0",
-    "zod": "^3.25.0 || ^4.0.0",
     "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "react-dom": ">=16.8.0",
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -76,7 +77,25 @@
     "lint": "tsc",
     "test": "vitest",
     "benchmark": "tsx benchmark/stress.ts",
-    "release": "npm publish --access public && git push --follow-tags"
+    "release": "release-it"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release v${version}",
+      "tagName": "v${version}"
+    },
+    "npm": {
+      "publish": true
+    },
+    "github": {
+      "release": true
+    },
+    "hooks": {
+      "before:init": [
+        "npm run test",
+        "npm run build"
+      ]
+    }
   },
   "type": "module",
   "types": "dist/server/index.d.ts"
