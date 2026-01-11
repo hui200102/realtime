@@ -1,5 +1,5 @@
 import type Redis from "ioredis";
-import { type UserEvent, userEvent } from "../shared/types.js";
+import { type UserEvent, userEvent, Logger } from "../shared/types.js";
 
 type Listener = (message: UserEvent) => void;
 
@@ -9,13 +9,13 @@ export class SubscriptionManager {
   // Map<ChannelName, Set<Listener>>
   private listeners: Map<string, Set<Listener>> = new Map();
   private unsubscribeTimers: Map<string, NodeJS.Timeout> = new Map();
-  private verbose: boolean;
+  private logger: Logger;
 
-  constructor(redis: Redis, verbose: boolean = false) {
+  constructor(redis: Redis, logger: Logger) {
     this.redis = redis;
     // Create the single global subscription connection
     this.subRedis = redis.duplicate();
-    this.verbose = verbose;
+    this.logger = logger;
 
     this.setupMessageListener();
   }
@@ -43,16 +43,14 @@ export class SubscriptionManager {
         const result = userEvent.safeParse(payload);
 
         if (result.success) {
-          if (this.verbose) {
-            console.log(
-              `[SubscriptionManager] Dispatching message to ${handlers.size} listeners on ${channel}`
-            );
-          }
+          this.logger.debug?.(
+            `[SubscriptionManager] Dispatching message to ${handlers.size} listeners on ${channel}`
+          );
           handlers.forEach((listener) => {
             try {
               listener(result.data);
             } catch (listenerErr) {
-              console.error(
+              this.logger.error(
                 `[SubscriptionManager] Error in listener for ${channel}:`,
                 listenerErr
               );
@@ -60,7 +58,7 @@ export class SubscriptionManager {
           });
         }
       } catch (err) {
-        console.error(
+        this.logger.error(
           `[SubscriptionManager] Error processing message on ${channel}:`,
           err
         );
@@ -68,7 +66,7 @@ export class SubscriptionManager {
     });
 
     this.subRedis.on("error", (err) => {
-      console.error("[SubscriptionManager] Redis subscription error:", err);
+      this.logger.error("[SubscriptionManager] Redis subscription error:", err);
     });
   }
 
@@ -79,19 +77,17 @@ export class SubscriptionManager {
     if (this.unsubscribeTimers.has(channel)) {
       clearTimeout(this.unsubscribeTimers.get(channel)!);
       this.unsubscribeTimers.delete(channel);
-      if (this.verbose)
-        console.log(
-          `[SubscriptionManager] Cancelled pending unsubscribe for: ${channel}`
-        );
+      this.logger.debug?.(
+        `[SubscriptionManager] Cancelled pending unsubscribe for: ${channel}`
+      );
     }
 
     if (!this.listeners.has(channel)) {
       this.listeners.set(channel, new Set());
       // If this is the first listener for this channel, subscribe in Redis
-      if (this.verbose)
-        console.log(
-          `[SubscriptionManager] Subscribing to Redis channel: ${channel}`
-        );
+      this.logger.debug?.(
+        `[SubscriptionManager] Subscribing to Redis channel: ${channel}`
+      );
       await this.subRedis.subscribe(channel);
     }
 
@@ -114,12 +110,11 @@ export class SubscriptionManager {
             this.listeners.delete(channel);
             this.unsubscribeTimers.delete(channel);
 
-            if (this.verbose)
-              console.log(
-                `[SubscriptionManager] Unsubscribing from Redis channel: ${channel}`
-              );
+            this.logger.debug?.(
+              `[SubscriptionManager] Unsubscribing from Redis channel: ${channel}`
+            );
             this.subRedis.unsubscribe(channel).catch((err) => {
-              console.error(
+              this.logger.error(
                 `[SubscriptionManager] Error unsubscribing from ${channel}:`,
                 err
               );

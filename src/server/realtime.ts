@@ -75,7 +75,7 @@ class RealtimeBase<T extends Opts> {
     if (this._redis) {
       this._subscriptionManager = new SubscriptionManager(
         this._redis,
-        this._verbose
+        this._logger
       );
     }
 
